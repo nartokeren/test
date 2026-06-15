@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Monitoring Kantor</title>
+    
+    <!-- BIKIN CANTIK PAKE CSS -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            padding: 20px;
+        }
+        
+        .header {
+            background-color: #1a73e8;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .upload-box {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .kpi-box {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .kpi-card {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            flex: 1;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .kpi-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #1a73e8;
+        }
+        
+        .chart-box {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+        
+        th {
+            background-color: #1a73e8;
+            color: white;
+            padding: 10px;
+        }
+        
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        button {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        
+        button:hover {
+            background-color: #1557b0;
+        }
+        
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        input[type="file"] {
+            padding: 10px;
+            margin: 10px;
+        }
+        
+        .filter-box {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        input[type="text"], select {
+            padding: 10px;
+            margin: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Dashboard Monitoring Kantor</h1>
+    </div>
+    
+    <!-- BAGIAN UPLOAD -->
+    <div class="upload-box">
+        <h2>Upload File Excel Kamu</h2>
+        <input type="file" id="fileExcel" accept=".xlsx,.xls">
+        <br>
+        <button id="btnJalankan" disabled>▶ Jalankan Dashboard</button>
+        <button id="btnReset">🔄 Reset</button>
+    </div>
+    
+    <!-- BAGIAN ANGKA-ANGKA KPI -->
+    <div class="kpi-box">
+        <div class="kpi-card">
+            <h3>Total Data</h3>
+            <div class="kpi-value" id="totalData">-</div>
+        </div>
+        <div class="kpi-card">
+            <h3>Rata-rata</h3>
+            <div class="kpi-value" id="rataRata">-</div>
+        </div>
+        <div class="kpi-card">
+            <h3>Nilai Tertinggi</h3>
+            <div class="kpi-value" id="nilaiMax">-</div>
+        </div>
+        <div class="kpi-card">
+            <h3>Nilai Terendah</h3>
+            <div class="kpi-value" id="nilaiMin">-</div>
+        </div>
+    </div>
+    
+    <!-- BAGIAN GRAFIK -->
+    <div class="chart-box">
+        <h3>📈 Grafik Data</h3>
+        <canvas id="grafikLine"></canvas>
+    </div>
+    
+    <div class="chart-box">
+        <h3>📊 Diagram Batang (10 Data Pertama)</h3>
+        <canvas id="grafikBar"></canvas>
+    </div>
+    
+    <!-- BAGIAN FILTER -->
+    <div class="filter-box">
+        <h3>🔍 Cari Data</h3>
+        <select id="filterKolom">
+            <option value="">Pilih Kolom</option>
+        </select>
+        <input type="text" id="inputCari" placeholder="Ketik kata kunci...">
+    </div>
+    
+    <!-- BAGIAN TABEL -->
+    <div class="chart-box">
+        <h3>📋 Tabel Data Lengkap</h3>
+        <div style="overflow-x: auto;">
+            <table id="tabelData">
+                <thead></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- LOAD LIBRARY DARI INTERNET -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- OTAK/JAVASCRIPT -->
+    <script>
+        // Tempat nyimpen data Excel
+        var dataExcel = null;
+        var grafikLine = null;
+        var grafikBar = null;
+        
+        // Ambil element HTML
+        var fileExcel = document.getElementById('fileExcel');
+        var btnJalankan = document.getElementById('btnJalankan');
+        var btnReset = document.getElementById('btnReset');
+        var filterKolom = document.getElementById('filterKolom');
+        var inputCari = document.getElementById('inputCari');
+        
+        // KALO USER MILIH FILE EXCEL
+        fileExcel.addEventListener('change', function(event) {
+            var file = event.target.files[0];
+            
+            if (!file) return;
+            
+            var reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    // Baca file Excel
+                    var data = new Uint8Array(e.target.result);
+                    var workbook = XLSX.read(data, {type: 'array'});
+                    
+                    // Ambil sheet pertama
+                    var sheetPertama = workbook.Sheets[workbook.SheetNames[0]];
+                    
+                    // Ubah jadi array
+                    dataExcel = XLSX.utils.sheet_to_json(sheetPertama, {header: 1});
+                    
+                    if (dataExcel.length > 0) {
+                        btnJalankan.disabled = false;
+                        alert('✅ File berhasil dibaca! Klik "Jalankan Dashboard"');
+                        
+                        // Isi pilihan kolom untuk filter
+                        var headers = dataExcel[0];
+                        filterKolom.innerHTML = '<option value="">Pilih Kolom</option>';
+                        for (var i = 0; i < headers.length; i++) {
+                            filterKolom.innerHTML += '<option value="' + i + '">' + (headers[i] || 'Kolom ' + (i+1)) + '</option>';
+                        }
+                    }
+                } catch (error) {
+                    alert('❌ Gagal baca file: ' + error.message);
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        });
+        
+        // KALO TOMBOL JALANKAN DIKLIK
+        btnJalankan.addEventListener('click', function() {
+            if (!dataExcel || dataExcel.length < 2) {
+                alert('⚠️ Data kurang! Pastikan Excel ada header dan datanya.');
+                return;
+            }
+            
+            var headers = dataExcel[0];
+            var dataRows = dataExcel.slice(1); // Ambil semua baris kecuali header
+            
+            // HITUNG KPI
+            var nilaiNilai = [];
+            for (var i = 0; i < dataRows.length; i++) {
+                var nilai = parseFloat(dataRows[i][dataRows[i].length - 1]);
+                if (!isNaN(nilai)) {
+                    nilaiNilai.push(nilai);
+                }
+            }
+            
+            if (nilaiNilai.length > 0) {
+                var total = 0;
+                var max = nilaiNilai[0];
+                var min = nilaiNilai[0];
+                
+                for (var i = 0; i < nilaiNilai.length; i++) {
+                    total += nilaiNilai[i];
+                    if (nilaiNilai[i] > max) max = nilaiNilai[i];
+                    if (nilaiNilai[i] < min) min = nilaiNilai[i];
+                }
+                
+                document.getElementById('totalData').innerHTML = dataRows.length;
+                document.getElementById('rataRata').innerHTML = (total / nilaiNilai.length).toFixed(2);
+                document.getElementById('nilaiMax').innerHTML = max.toFixed(2);
+                document.getElementById('nilaiMin').innerHTML = min.toFixed(2);
+            }
+            
+            // BUAT GRAFIK LINE
+            var labels = [];
+            var values = [];
+            for (var i = 0; i < dataRows.length; i++) {
+                labels.push(dataRows[i][0] || 'Data ' + (i+1));
+                values.push(parseFloat(dataRows[i][dataRows[i].length - 1]) || 0);
+            }
+            
+            // Hapus grafik lama kalo ada
+            if (grafikLine) grafikLine.destroy();
+            if (grafikBar) grafikBar.destroy();
+            
+            // Grafik Line
+            var ctxLine = document.getElementById('grafikLine').getContext('2d');
+            grafikLine = new Chart(ctxLine, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: headers[headers.length - 1] || 'Nilai',
+                        data: values,
+                        borderColor: '#1a73e8',
+                        backgroundColor: 'rgba(26, 115, 232, 0.1)',
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true
+                }
+            });
+            
+            // Grafik Bar (10 data pertama)
+            var ctxBar = document.getElementById('grafikBar').getContext('2d');
+            grafikBar = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: labels.slice(0, 10),
+                    datasets: [{
+                        label: headers[headers.length - 1] || 'Nilai',
+                        data: values.slice(0, 10),
+                        backgroundColor: '#34a853'
+                    }]
+                },
+                options: {
+                    responsive: true
+                }
+            });
+            
+            // ISI TABEL
+            var thead = document.querySelector('#tabelData thead');
+            var tbody = document.querySelector('#tabelData tbody');
+            
+            // Header tabel
+            var htmlHead = '<tr>';
+            for (var i = 0; i < headers.length; i++) {
+                htmlHead += '<th>' + (headers[i] || 'Kolom ' + (i+1)) + '</th>';
+            }
+            htmlHead += '</tr>';
+            thead.innerHTML = htmlHead;
+            
+            // Body tabel
+            tampilkanTabel(dataRows);
+        });
+        
+        // FUNGSI TAMPILKAN TABEL
+        function tampilkanTabel(dataRows) {
+            var tbody = document.querySelector('#tabelData tbody');
+            var htmlBody = '';
+            
+            for (var i = 0; i < dataRows.length; i++) {
+                htmlBody += '<tr>';
+                for (var j = 0; j < dataRows[i].length; j++) {
+                    htmlBody += '<td>' + (dataRows[i][j] || '') + '</td>';
+                }
+                htmlBody += '</tr>';
+            }
+            
+            tbody.innerHTML = htmlBody;
+        }
+        
+        // FITUR CARI/FILTER
+        inputCari.addEventListener('input', function() {
+            if (!dataExcel) return;
+            
+            var kolomDipilih = parseInt(filterKolom.value);
+            var kataKunci = inputCari.value.toLowerCase();
+            
+            var dataRows = dataExcel.slice(1);
+            
+            if (!isNaN(kolomDipilih) && kataKunci !== '') {
+                // Filter data
+                var dataFilter = [];
+                for (var i = 0; i < dataRows.length; i++) {
+                    var isiKolom = String(dataRows[i][kolomDipilih] || '').toLowerCase();
+                    if (isiKolom.includes(kataKunci)) {
+                        dataFilter.push(dataRows[i]);
+                    }
+                }
+                tampilkanTabel(dataFilter);
+            } else {
+                // Tampilkan semua
+                tampilkanTabel(dataRows);
+            }
+        });
+        
+        // TOMBOL RESET
+        btnReset.addEventListener('click', function() {
+            dataExcel = null;
+            fileExcel.value = '';
+            btnJalankan.disabled = true;
+            inputCari.value = '';
+            filterKolom.innerHTML = '<option value="">Pilih Kolom</option>';
+            
+            document.getElementById('totalData').innerHTML = '-';
+            document.getElementById('rataRata').innerHTML = '-';
+            document.getElementById('nilaiMax').innerHTML = '-';
+            document.getElementById('nilaiMin').innerHTML = '-';
+            
+            if (grafikLine) grafikLine.destroy();
+            if (grafikBar) grafikBar.destroy();
+            
+            document.querySelector('#tabelData thead').innerHTML = '';
+            document.querySelector('#tabelData tbody').innerHTML = '';
+            
+            alert('🔄 Dashboard direset!');
+        });
+    </script>
+</body>
+</html>
